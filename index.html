@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Importador NF-e</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #EAF1FB; min-height: 100vh;
+           display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .card { background: white; padding: 40px; border-radius: 16px;
+            box-shadow: 0 8px 32px #1F4E7922; max-width: 560px; width: 100%; }
+    h1 { color: #1F4E79; margin-bottom: 8px; font-size: 24px; }
+    p  { color: #555; margin-bottom: 24px; }
+
+    .upload-area { border: 2px dashed #1F4E79; border-radius: 12px; padding: 32px;
+                   text-align: center; cursor: pointer; transition: background .2s; }
+    .upload-area:hover { background: #EAF1FB; }
+    #pdf { display: none; }
+    .upload-label { cursor: pointer; color: #1F4E79; font-weight: bold; font-size: 16px; }
+    .hint { color: #888; font-size: 13px; margin-top: 8px; }
+    #nome-arquivo { margin-top: 10px; color: #1F4E79; font-size: 14px; font-weight: bold; }
+
+    button { width: 100%; margin-top: 20px; padding: 14px; background: #1F4E79;
+             color: white; border: none; border-radius: 10px; font-size: 16px;
+             cursor: pointer; transition: background .2s; }
+    button:hover:not(:disabled) { background: #2e6da4; }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+
+    #status { margin-top: 24px; padding: 20px; border-radius: 10px; display: none; }
+    .ok  { background: #D4EDDA; color: #155724; border: 1px solid #C3E6CB; }
+    .err { background: #F8D7DA; color: #721C24; border: 1px solid #F5C6CB; }
+
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 14px 0; }
+    .info-item { background: #EAF1FB; border-radius: 8px; padding: 10px; }
+    .info-item span { display: block; font-size: 11px; color: #555; }
+    .info-item strong { font-size: 15px; color: #1F4E79; }
+
+    .btn-download { display: inline-block; margin-top: 14px; padding: 12px 28px;
+                    background: #1F4E79; color: white; border-radius: 8px;
+                    text-decoration: none; font-weight: bold; }
+    .btn-download:hover { background: #2e6da4; }
+
+    .loader { display: inline-block; width: 16px; height: 16px;
+              border: 3px solid #ffffff55; border-top-color: white;
+              border-radius: 50%; animation: spin .7s linear infinite;
+              vertical-align: middle; margin-right: 8px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>📄 Importador NF-e</h1>
+  <p>Converta notas fiscais DANFE (PDF) para planilha Excel com um clique.</p>
+
+  <div class="upload-area" onclick="document.getElementById('pdf').click()">
+    <input type="file" id="pdf" accept=".pdf">
+    <div class="upload-label">📎 Clique para selecionar o PDF</div>
+    <div class="hint">Apenas arquivos .PDF — máx. 16MB</div>
+    <div id="nome-arquivo"></div>
+  </div>
+
+  <button id="btn" onclick="enviar()" disabled>Selecione um PDF primeiro</button>
+  <div id="status"></div>
+</div>
+
+<script>
+  // ⚠️ Troque pela URL do seu serviço no Render após criar
+  const BACKEND = 'https://nfe-para-excel.onrender.com';
+
+  const input = document.getElementById('pdf');
+  const btn   = document.getElementById('btn');
+
+  input.addEventListener('change', () => {
+    if (input.files.length > 0) {
+      document.getElementById('nome-arquivo').textContent = '✅ ' + input.files[0].name;
+      btn.disabled = false;
+      btn.textContent = '⚙️ Converter para Excel';
+    }
+  });
+
+  async function enviar() {
+    const status = document.getElementById('status');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loader"></span>Processando...';
+    status.style.display = 'none';
+
+    const form = new FormData();
+    form.append('pdf', input.files[0]);
+
+    try {
+      const resp = await fetch(`${BACKEND}/processar`, { method: 'POST', body: form });
+      const data = await resp.json();
+
+      status.style.display = 'block';
+
+      if (data.sucesso) {
+        status.className = 'ok';
+        status.innerHTML = `
+          <strong>✅ ${data.mensagem}</strong>
+          <div class="info-grid">
+            <div class="info-item"><span>NF-e Número</span><strong>${data.nfe || '—'}</strong></div>
+            <div class="info-item"><span>Data Emissão</span><strong>${data.emissao || '—'}</strong></div>
+            <div class="info-item"><span>Valor Total</span><strong>${data.valor || '—'}</strong></div>
+          </div>
+          <a class="btn-download" href="${BACKEND}/download/${data.arquivo}" target="_blank">
+            📥 Baixar Excel
+          </a>`;
+      } else {
+        status.className = 'err';
+        status.textContent = '❌ ' + data.erro;
+      }
+
+    } catch (err) {
+      status.style.display = 'block';
+      status.className = 'err';
+      status.textContent = '❌ Erro de conexão com o servidor. Tente novamente.';
+    }
+
+    btn.disabled = false;
+    btn.textContent = '⚙️ Converter para Excel';
+  }
+</script>
+</body>
+</html>
