@@ -83,15 +83,30 @@
     const status = document.getElementById('status');
     btn.disabled = true;
     btn.innerHTML = '<span class="loader"></span>Processando...';
-    status.style.display = 'none';
+    status.style.display = 'block';
+    status.className = '';
+    status.innerHTML = '⏳ Aguarde, o servidor pode levar até 1 minuto para iniciar...';
 
     const form = new FormData();
     form.append('pdf', input.files[0]);
 
+    // Acorda o servidor antes de enviar
     try {
-      const resp = await fetch(`${BACKEND}/processar`, { method: 'POST', body: form });
-      const data = await resp.json();
+      await fetch(`${BACKEND}/ping`, { method: 'GET', mode: 'cors' });
+    } catch(e) {}
 
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120000); // 2 minutos
+
+      const resp = await fetch(`${BACKEND}/processar`, {
+        method: 'POST',
+        body: form,
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
+      const data = await resp.json();
       status.style.display = 'block';
 
       if (data.sucesso) {
@@ -114,7 +129,11 @@
     } catch (err) {
       status.style.display = 'block';
       status.className = 'err';
-      status.textContent = '❌ Erro de conexão com o servidor. Tente novamente.';
+      if (err.name === 'AbortError') {
+        status.textContent = '❌ Servidor demorou muito. Tente novamente em alguns segundos.';
+      } else {
+        status.textContent = '❌ Erro de conexão. Tente novamente.';
+      }
     }
 
     btn.disabled = false;
@@ -122,4 +141,5 @@
   }
 </script>
 </body>
+
 </html>
